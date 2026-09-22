@@ -137,8 +137,9 @@ def main():
     args = parser.parse_args()
     lab = terraform_output()
     print(f"Балансировщик: {lab['lb_public_ip']} | Сайт: http://{lab['lb_public_ip']}", flush=True)
-    if args.action == "trust":
+    if args.action in ("trust", "prepare"):
         host_keys(lab)
+    if args.action == "trust":
         return
     with connect(lab) as client:
         base = f"/home/{lab['ssh_user']}/otus-dz03"

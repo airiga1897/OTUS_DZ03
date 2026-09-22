@@ -155,8 +155,8 @@ Remove-Variable taskToken
 
 В Windows PowerShell 5.1 `Set-Content -Encoding utf8` добавляет BOM.
 Контроллер поддерживает чтение такого файла, но при ручной записи предпочтителен
-приведённый способ. После пересоздания ВМ сначала успешно выполнить `trust`,
-затем `prepare`: старые записи known_hosts не подтверждают ключи новых серверов.
+приведённый способ. После пересоздания ВМ выполнить `prepare`: он автоматически
+получит ключи новых серверов через YC до первого SSH-подключения.
 
 ### 3. Создать инфраструктуру
 
@@ -184,17 +184,21 @@ Remove-Variable taskToken
 ### 4. Настроить приложение
 
 ```powershell
-.\.tools\venv\Scripts\python.exe -u scripts/controller.py trust
 .\.tools\venv\Scripts\python.exe -u scripts/controller.py prepare
 .\.tools\venv\Scripts\python.exe -u scripts/controller.py run site.yml --syntax-check
 .\.tools\venv\Scripts\python.exe -u scripts/controller.py run site.yml
 .\.tools\venv\Scripts\python.exe -u scripts/controller.py run verify.yml
 ```
 
-`trust` получает SSH host keys через serial console YC. `prepare` проверяет
-ключ сервера, загружает исходники и секреты только DZ03, создаёт inventory
+`prepare` автоматически получает SSH host keys через serial console YC,
+проверяет ключ сервера при подключении, загружает исходники и секреты только DZ03, создаёт inventory
 и устанавливает Ansible с коллекциями в окружение проекта на lb.
 Credentials YC и state на ВМ не передаются.
+
+Отдельная команда `trust` оставлена для диагностики и обновления known_hosts.
+В обычном развёртывании она не нужна. Если получить ключи через YC не удалось,
+`prepare` останавливается до SSH-подключения; автоматического принятия неизвестных
+ключей нет.
 
 Коллекции поставляются пакетом `ansible==14.4.0` из PyPI вместе с
 `ansible-core==2.21.4`: `ansible.mysql 5.2.0`, `ansible.posix 2.2.2`.
@@ -330,14 +334,13 @@ tf output -raw lb_public_ip
 С рабочего места:
 
 ```bash
-.venv/bin/python -u scripts/controller.py trust
 .venv/bin/python -u scripts/controller.py prepare
 .venv/bin/python -u scripts/controller.py run site.yml --syntax-check
 .venv/bin/python -u scripts/controller.py run site.yml
 .venv/bin/python -u scripts/controller.py run verify.yml
 ```
 
-`trust` получает ключи серверов через YC; `prepare` загружает исходники,
+`prepare` сначала автоматически получает ключи серверов через YC, затем загружает исходники,
 секреты DZ03 и inventory, создаёт `/home/otus/otus-dz03/.venv` на lb.
 Облачные credentials и state остаются на рабочем месте.
 Коллекции входят в зафиксированный пакет `ansible==14.4.0` из PyPI;
