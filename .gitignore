@@ -8,6 +8,7 @@ crash.log
 .venv/
 .tools/
 .local/
+AGENTS.md
 terraform.tfvars.json
 __pycache__/
 *.pyc
