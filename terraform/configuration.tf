@@ -31,7 +31,9 @@ resource "terraform_data" "configuration" {
 
   provisioner "local-exec" {
     working_dir = local.project_root
-    command     = "\"${local.deploy_python}\" -u scripts/apply_deploy.py"
+    # Передаём путь к Python отдельным аргументом, без cmd.exe / shell quoting.
+    interpreter = [local.deploy_python, "-u", "-c"]
+    command     = "import runpy; runpy.run_path('scripts/apply_deploy.py', run_name='__main__')"
     environment = {
       PYTHONIOENCODING = "utf-8"
       # Не читаем terraform output внутри apply: outputs ещё могут быть не записаны.

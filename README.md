@@ -100,6 +100,10 @@ Terraform state, реальные tfvars, credentials и приватные кл
 
 ## Инструкция для Windows
 
+Команды `plan` и `plan -destroy` сразу показывают изменения и сохраняют план
+через `-out`. Перед `apply` проверить этот вывод; отдельный `show` не обязателен.
+Для повторного просмотра позже: `.\scripts\tf.ps1 show ../.local/ИМЯ-ПЛАНА.tfplan`.
+
 ### 1. Подготовить рабочее место
 
 Нужны Git, Python 3 и PowerShell. Следующие команды выполняются на рабочем
@@ -166,7 +170,6 @@ Remove-Variable taskToken
 .\.tools\terraform.exe -chdir=terraform fmt -check
 .\.tools\terraform.exe -chdir=terraform validate
 .\scripts\tf.ps1 plan -input=false '-out=../.local/otus-dz03.tfplan'
-.\scripts\tf.ps1 show ../.local/otus-dz03.tfplan
 # После проверки облака, каталога и состава платных ресурсов:
 .\scripts\tf.ps1 apply ../.local/otus-dz03.tfplan
 .\scripts\tf.ps1 output
@@ -245,8 +248,7 @@ Nginx и PHP-FPM на web1 для каждого алгоритма, затем 
 ```powershell
 .\scripts\tf.ps1 state list
 .\scripts\tf.ps1 plan -destroy '-out=../.local/otus-dz03-destroy.tfplan'
-.\scripts\tf.ps1 show ../.local/otus-dz03-destroy.tfplan
-# Следующая команда применяет просмотренный план без повторного вопроса:
+# После проверки вывода plan: следующая команда удаляет ресурсы без повторного вопроса:
 .\scripts\tf.ps1 apply ../.local/otus-dz03-destroy.tfplan
 .\scripts\tf.ps1 state list
 ```
@@ -262,6 +264,10 @@ Nginx и PHP-FPM на web1 для каждого алгоритма, затем 
 передаются непосредственно Terraform, чтобы сохранить формат для скриптов.
 
 ## Инструкция для Linux
+
+`plan` и `plan -destroy` сразу показывают изменения. Перед `apply` проверить
+их вывод. Необязательный повторный просмотр сохранённого плана:
+`tf show ../.local/ИМЯ-ПЛАНА.tfplan` (после определения функции `tf` ниже).
 
 ### 1. Подготовить рабочее место
 
@@ -321,7 +327,6 @@ tf init -input=false
 tf fmt -check
 tf validate
 tf plan -input=false -out=../.local/otus-dz03.tfplan
-tf show ../.local/otus-dz03.tfplan
 # После проверки облака, каталога и состава платных ресурсов:
 tf apply ../.local/otus-dz03.tfplan
 tf output
@@ -396,8 +401,7 @@ cd /home/otus/otus-dz03/ansible
 ```bash
 tf state list
 tf plan -destroy -input=false -out=../.local/otus-dz03-destroy.tfplan
-tf show ../.local/otus-dz03-destroy.tfplan
-# Следующая команда применяет просмотренный план без повторного вопроса:
+# После проверки вывода plan: следующая команда удаляет ресурсы без повторного вопроса:
 tf apply ../.local/otus-dz03-destroy.tfplan
 tf state list
 ```

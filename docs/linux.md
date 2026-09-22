@@ -72,6 +72,10 @@ Terraform plan. Скрипт не перезаписывает существу�
 
 ## Terraform
 
+`plan` сразу выводит изменения, в том числе при `-destroy`. Проверить этот
+вывод перед `apply`. Команда `tf show ../.local/ИМЯ-ПЛАНА.tfplan` нужна только
+для необязательного повторного просмотра сохранённого плана позже.
+
 В каждой новой сессии перейти в корень проекта и определить функцию:
 
 ```bash
@@ -83,7 +87,6 @@ tf init -input=false
 tf fmt -check
 tf validate
 tf plan -input=false -out=../.local/otus-dz03.tfplan
-tf show ../.local/otus-dz03.tfplan
 # После проверки cloud/folder и всех изменений в плане:
 tf apply ../.local/otus-dz03.tfplan
 tf output
@@ -181,8 +184,7 @@ bash scripts/run_checks.sh "$PUBLIC_IP"
 ```bash
 tf state list
 tf plan -destroy -input=false -out=../.local/otus-dz03-destroy.tfplan
-tf show ../.local/otus-dz03-destroy.tfplan
-# После просмотра плана: следующая команда удаляет ресурсы
+# После проверки вывода plan: следующая команда удаляет ресурсы
 # без дополнительного интерактивного подтверждения.
 tf apply ../.local/otus-dz03-destroy.tfplan
 tf state list
