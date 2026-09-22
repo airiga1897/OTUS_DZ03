@@ -1,0 +1,83 @@
+---
+- name: Установить MySQL и NFS
+  ansible.builtin.apt:
+    name: [mysql-server, nfs-kernel-server]
+    state: present
+    lock_timeout: 300
+
+- name: Установить драйвер MySQL в venv
+  ansible.builtin.pip:
+    name: PyMySQL==1.1.2
+    executable: /opt/otus-dz03/venv/bin/pip
+
+- name: Настроить MySQL на приватном интерфейсе
+  ansible.builtin.copy:
+    dest: /etc/mysql/mysql.conf.d/otus.cnf
+    mode: "0644"
+    content: |
+      [mysqld]
+      bind-address = {{ private_ip }}
+      mysqlx-bind-address = 127.0.0.1
+      skip-name-resolve
+      max_connections = 100
+      innodb_buffer_pool_size = 256M
+  notify: Перезапустить MySQL
+
+- name: Включить MySQL
+  ansible.builtin.systemd_service:
+    name: mysql
+    state: started
+    enabled: true
+
+- name: Применить настройки MySQL до создания пользователей
+  ansible.builtin.meta: flush_handlers
+
+- name: Создать базу WordPress
+  ansible.mysql.mysql_db:
+    name: "{{ wordpress_db_name }}"
+    encoding: utf8mb4
+    collation: utf8mb4_unicode_ci
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+    config_file: ""
+
+- name: Разрешить пользователю WordPress доступ только с двух веб-узлов
+  ansible.mysql.mysql_user:
+    name: "{{ wordpress_db_user }}"
+    host: "{{ hostvars[item].private_ip }}"
+    password: "{{ wordpress_db_password }}"
+    priv: "{{ wordpress_db_name }}.*:ALL"
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+    config_file: ""
+    state: present
+  loop: "{{ groups['web'] }}"
+  no_log: true
+
+- name: Подготовить каталог общих загрузок
+  ansible.builtin.file:
+    path: /srv/wordpress/uploads
+    state: directory
+    owner: www-data
+    group: www-data
+    mode: "0755"
+
+- name: Создать каталог конфигурации NFS
+  ansible.builtin.file:
+    path: /etc/exports.d
+    state: directory
+    mode: "0755"
+
+- name: Экспортировать загрузки только веб-узлам
+  ansible.builtin.template:
+    src: exports.j2
+    dest: /etc/exports.d/otus.exports
+    mode: "0644"
+  notify: Перечитать NFS exports
+
+- name: Включить NFS
+  ansible.builtin.systemd_service:
+    name: nfs-kernel-server
+    state: started
+    enabled: true
+
+- name: Применить экспорты до подключения клиентов
+  ansible.builtin.meta: flush_handlers

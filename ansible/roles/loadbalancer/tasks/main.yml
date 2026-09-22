@@ -1,0 +1,25 @@
+---
+- name: Проверить допустимый алгоритм
+  ansible.builtin.assert:
+    that: nginx_lb_method in ['round_robin', 'hash']
+    fail_msg: Допустимы round_robin и hash.
+
+- name: Установить Nginx
+  ansible.builtin.apt:
+    name: nginx
+    state: present
+    lock_timeout: 300
+
+- name: Применить конфигурацию после nginx -t
+  ansible.builtin.template:
+    src: nginx.conf.j2
+    dest: /etc/nginx/nginx.conf
+    mode: "0644"
+    validate: /usr/sbin/nginx -t -c %s
+  notify: Перезагрузить балансировщик
+
+- name: Включить Nginx
+  ansible.builtin.systemd_service:
+    name: nginx
+    state: started
+    enabled: true

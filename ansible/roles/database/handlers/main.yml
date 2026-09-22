@@ -1,0 +1,8 @@
+---
+- name: Перезапустить MySQL
+  ansible.builtin.systemd_service:
+    name: mysql
+    state: restarted
+
+- name: Перечитать NFS exports
+  ansible.builtin.command: exportfs -ra

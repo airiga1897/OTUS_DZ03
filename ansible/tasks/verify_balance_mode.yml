@@ -1,0 +1,28 @@
+---
+- name: "Настроить алгоритм {{ verification_method }}"
+  ansible.builtin.include_role:
+    name: loadbalancer
+  vars:
+    nginx_lb_method: "{{ verification_method }}"
+
+- name: Применить алгоритм перед HTTP-проверкой
+  ansible.builtin.meta: flush_handlers
+
+- name: Проверить WordPress, статику и распределение запросов
+  become: false
+  ansible.builtin.command:
+    argv:
+      - "{{ playbook_dir }}/../.venv/bin/python"
+      - "{{ playbook_dir }}/../scripts/verify_http.py"
+      - --base-url
+      - http://127.0.0.1
+      - --host
+      - "{{ public_ip }}"
+      - --mode
+      - "{{ verification_method }}"
+  changed_when: false
+  register: balance_check
+
+- name: Показать результат проверки алгоритма
+  ansible.builtin.debug:
+    msg: "{{ balance_check.stdout }}"

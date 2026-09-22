@@ -1,0 +1,89 @@
+
+PLAY [Переключить алгоритм без перенастройки WordPress] ************************
+
+TASK [Gathering Facts] *********************************************************
+ok: [lb]
+
+TASK [loadbalancer : Проверить допустимый алгоритм] ****************************
+ok: [lb] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [loadbalancer : Установить Nginx] *****************************************
+ok: [lb]
+
+TASK [loadbalancer : Применить конфигурацию после nginx -t] ********************
+ok: [lb]
+
+TASK [loadbalancer : Включить Nginx] *******************************************
+ok: [lb]
+
+PLAY RECAP *********************************************************************
+lb                         : ok=5    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0
+
+{"mode": "round_robin", "distribution": {"web2": 15, "web1": 15}, "wordpress": "ok", "static": "ok"}
+{"mode": "round_robin", "stopped": "web1/nginx", "requests": 12, "all_served_by": "web2", "max_seconds": 0.018}
+{"recovered": "web1/nginx", "nodes": ["web1", "web2"]}
+{"mode": "round_robin", "distribution": {"web1": 15, "web2": 15}, "wordpress": "ok", "static": "ok"}
+{"mode": "round_robin", "stopped": "web1/php8.3-fpm", "requests": 12, "all_served_by": "web2", "max_seconds": 0.024}
+{"recovered": "web1/php8.3-fpm", "nodes": ["web1", "web2"]}
+
+PLAY [Переключить алгоритм без перенастройки WordPress] ************************
+
+TASK [Gathering Facts] *********************************************************
+ok: [lb]
+
+TASK [loadbalancer : Проверить допустимый алгоритм] ****************************
+ok: [lb] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [loadbalancer : Установить Nginx] *****************************************
+ok: [lb]
+
+TASK [loadbalancer : Применить конфигурацию после nginx -t] ********************
+changed: [lb]
+
+TASK [loadbalancer : Включить Nginx] *******************************************
+ok: [lb]
+
+RUNNING HANDLER [loadbalancer : Перезагрузить балансировщик] *******************
+changed: [lb]
+
+PLAY RECAP *********************************************************************
+lb                         : ok=6    changed=2    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0
+
+{"mode": "hash", "distribution": {"web1": 16, "web2": 24}, "wordpress": "ok", "static": "ok"}
+{"mode": "hash", "stopped": "web1/nginx", "requests": 12, "all_served_by": "web2", "max_seconds": 0.017}
+{"recovered": "web1/nginx", "nodes": ["web1", "web2"]}
+{"mode": "hash", "distribution": {"web1": 16, "web2": 24}, "wordpress": "ok", "static": "ok"}
+{"mode": "hash", "stopped": "web1/php8.3-fpm", "requests": 12, "all_served_by": "web2", "max_seconds": 0.024}
+{"recovered": "web1/php8.3-fpm", "nodes": ["web1", "web2"]}
+
+PLAY [Переключить алгоритм без перенастройки WordPress] ************************
+
+TASK [Gathering Facts] *********************************************************
+ok: [lb]
+
+TASK [loadbalancer : Проверить допустимый алгоритм] ****************************
+ok: [lb] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [loadbalancer : Установить Nginx] *****************************************
+ok: [lb]
+
+TASK [loadbalancer : Применить конфигурацию после nginx -t] ********************
+changed: [lb]
+
+TASK [loadbalancer : Включить Nginx] *******************************************
+ok: [lb]
+
+RUNNING HANDLER [loadbalancer : Перезагрузить балансировщик] *******************
+changed: [lb]
+
+PLAY RECAP *********************************************************************
+lb                         : ok=6    changed=2    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0

@@ -1,0 +1,15 @@
+<?php
+header('Content-Type: application/json; charset=utf-8');
+header('Cache-Control: no-store');
+try {
+    // Загружается WordPress: проверка проходит через PHP-FPM и общую БД.
+    require_once __DIR__ . '/wp-load.php';
+    global $wpdb;
+    if ((int) $wpdb->get_var('SELECT 1') !== 1) {
+        throw new RuntimeException('database unavailable');
+    }
+    echo json_encode(['node' => '{{ inventory_hostname }}', 'database' => 'ok']);
+} catch (Throwable $error) {
+    http_response_code(503);
+    echo json_encode(['node' => '{{ inventory_hostname }}', 'database' => 'unavailable']);
+}

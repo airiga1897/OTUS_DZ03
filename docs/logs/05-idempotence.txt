@@ -1,0 +1,190 @@
+
+PLAY [Подготовить операционные системы и Python venv] **************************
+
+TASK [Gathering Facts] *********************************************************
+ok: [lb]
+ok: [db]
+ok: [web2]
+ok: [web1]
+
+TASK [common : Дождаться завершения cloud-init] ********************************
+ok: [db]
+ok: [lb]
+ok: [web2]
+ok: [web1]
+
+TASK [common : Установить системные зависимости] *******************************
+ok: [lb]
+ok: [web2]
+ok: [db]
+ok: [web1]
+
+TASK [common : Создать каталог Python-окружения модулей Ansible] ***************
+ok: [web2]
+ok: [db]
+ok: [lb]
+ok: [web1]
+
+TASK [common : Создать venv с доступом к системному python3-apt] ***************
+ok: [lb]
+ok: [web2]
+ok: [db]
+ok: [web1]
+
+TASK [common : Использовать venv для последующих модулей] **********************
+ok: [lb]
+ok: [web1]
+ok: [web2]
+ok: [db]
+
+PLAY [Настроить общую базу данных и загрузки WordPress] ************************
+
+TASK [Gathering Facts] *********************************************************
+ok: [db]
+
+TASK [database : Установить MySQL и NFS] ***************************************
+ok: [db]
+
+TASK [database : Установить драйвер MySQL в venv] ******************************
+ok: [db]
+
+TASK [database : Настроить MySQL на приватном интерфейсе] **********************
+ok: [db]
+
+TASK [database : Включить MySQL] ***********************************************
+ok: [db]
+
+TASK [database : Применить настройки MySQL до создания пользователей] **********
+
+TASK [database : Создать базу WordPress] ***************************************
+ok: [db]
+
+TASK [database : Разрешить пользователю WordPress доступ только с двух веб-узлов] ***
+ok: [db] => (item=(censored due to no_log))
+ok: [db] => (item=(censored due to no_log))
+
+TASK [database : Подготовить каталог общих загрузок] ***************************
+ok: [db]
+
+TASK [database : Создать каталог конфигурации NFS] *****************************
+ok: [db]
+
+TASK [database : Экспортировать загрузки только веб-узлам] *********************
+ok: [db]
+
+TASK [database : Включить NFS] *************************************************
+ok: [db]
+
+TASK [database : Применить экспорты до подключения клиентов] *******************
+
+PLAY [Настроить два одинаковых веб-узла] ***************************************
+
+TASK [Gathering Facts] *********************************************************
+ok: [web2]
+ok: [web1]
+
+TASK [wordpress : Установить Nginx, PHP-FPM и расширения WordPress] ************
+ok: [web2]
+ok: [web1]
+
+TASK [wordpress : Скачать фиксированную версию WP-CLI] *************************
+ok: [web2]
+ok: [web1]
+
+TASK [wordpress : Создать каталог WordPress] ***********************************
+ok: [web2]
+ok: [web1]
+
+TASK [wordpress : Скачать архив фиксированной версии WordPress] ****************
+ok: [web1]
+ok: [web2]
+
+TASK [wordpress : Распаковать WordPress системным tar с поддержкой длинных имён] ***
+skipping: [web1]
+skipping: [web2]
+
+TASK [wordpress : Проверить установленную версию перед дальнейшими действиями] ***
+ok: [web2]
+ok: [web1]
+
+TASK [wordpress : Проверить контрольные суммы ядра] ****************************
+ok: [web2]
+ok: [web1]
+
+TASK [wordpress : Записать общие настройки БД, URL и ключи авторизации] ********
+ok: [web2]
+ok: [web1]
+
+TASK [wordpress : Подключить общие загрузки через NFSv4] ***********************
+ok: [web2]
+ok: [web1]
+
+TASK [wordpress : Создать каталог зависимостей PHP-FPM] ************************
+ok: [web2]
+ok: [web1]
+
+TASK [wordpress : Запускать PHP-FPM после монтирования uploads] ****************
+ok: [web2]
+ok: [web1]
+
+TASK [wordpress : Настроить лимиты PHP] ****************************************
+ok: [web1]
+ok: [web2]
+
+TASK [wordpress : Установить диагностическую проверку PHP и БД] ****************
+ok: [web1]
+ok: [web2]
+
+TASK [wordpress : Создать каталог статики] *************************************
+ok: [web1]
+ok: [web2]
+
+TASK [wordpress : Добавить статическую страницу узла] **************************
+ok: [web1]
+ok: [web2]
+
+TASK [wordpress : Применить конфигурацию Nginx после проверки синтаксиса] ******
+ok: [web1]
+ok: [web2]
+
+TASK [wordpress : Включить PHP-FPM и Nginx] ************************************
+ok: [web1] => (item=php8.3-fpm)
+ok: [web2] => (item=php8.3-fpm)
+ok: [web1] => (item=nginx)
+ok: [web2] => (item=nginx)
+
+TASK [wordpress : Применить конфигурации до HTTP-проверок] *********************
+
+TASK [wordpress : Применить конфигурации до HTTP-проверок] *********************
+
+TASK [wordpress : Проверить наличие таблиц WordPress] **************************
+ok: [web1]
+
+TASK [wordpress : Инициализировать общую БД ровно один раз] ********************
+skipping: [web1]
+
+PLAY [Настроить балансировщик] *************************************************
+
+TASK [Gathering Facts] *********************************************************
+ok: [lb]
+
+TASK [loadbalancer : Проверить допустимый алгоритм] ****************************
+ok: [lb] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [loadbalancer : Установить Nginx] *****************************************
+ok: [lb]
+
+TASK [loadbalancer : Применить конфигурацию после nginx -t] ********************
+ok: [lb]
+
+TASK [loadbalancer : Включить Nginx] *******************************************
+ok: [lb]
+
+PLAY RECAP *********************************************************************
+db                         : ok=17   changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0
+lb                         : ok=11   changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0
+web1                       : ok=24   changed=0    unreachable=0    failed=0    skipped=2    rescued=0    ignored=0
+web2                       : ok=23   changed=0    unreachable=0    failed=0    skipped=1    rescued=0    ignored=0

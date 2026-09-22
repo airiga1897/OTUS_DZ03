@@ -1,0 +1,21 @@
+---
+- name: Проверить оба алгоритма без остановки веб-служб
+  hosts: loadbalancer
+  become: true
+  tasks:
+    - name: Проверить балансировку и восстановить рабочий режим
+      block:
+        - name: Проверить каждый алгоритм
+          ansible.builtin.include_tasks: tasks/verify_balance_mode.yml
+          loop: [round_robin, hash]
+          loop_control:
+            loop_var: verification_method
+      always:
+        - name: Вернуть round-robin даже после ошибки проверки
+          ansible.builtin.include_role:
+            name: loadbalancer
+          vars:
+            nginx_lb_method: round_robin
+
+        - name: Применить восстановленный режим
+          ansible.builtin.meta: flush_handlers

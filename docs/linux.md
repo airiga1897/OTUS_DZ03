@@ -1,0 +1,180 @@
+# Работа с Linux
+
+Инструкция для отдельного рабочего места Ubuntu 24.04 с Bash. Terraform и YC
+работают на рабочем месте; Ansible — на ВМ lb. Credentials YC и Terraform state
+на lb не переносить. Это инструкция для последующего запуска: полный цикл
+с Linux-рабочего места пока не проверен. Она не предназначена для обхода
+текущего обнаружения Python антивирусом на Windows.
+
+## Новое рабочее место
+
+Системные пакеты устанавливаются через apt, Python-зависимости — только в venv
+проекта. Команды ниже не изменяют PATH и не требуют активации venv.
+
+```bash
+sudo apt-get update
+sudo apt-get install -y git curl ca-certificates openssh-client python3 python3-venv
+mkdir -p "$HOME/projects"
+cd "$HOME/projects"
+git clone --branch develop https://github.com/airiga1897/OTUS_DZ03.git
+cd OTUS_DZ03
+umask 077
+mkdir -p .tools .local
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements-local.txt
+.venv/bin/python scripts/install_tools.py
+export TF_CLI_CONFIG_FILE="$PWD/terraform.rc"
+export YC_CLI_DISABLE_UPDATE_CHECK=1
+export PYTHONIOENCODING=utf-8
+.tools/terraform version
+.tools/yc --no-browser --config "$PWD/.local/yc-config.yaml" version
+```
+
+Окружения Windows `.tools/venv` и Linux `.venv` не копируются между ОС:
+на каждом рабочем месте venv создаётся заново. Инструменты Linux устанавливаются
+в `.tools/terraform` и `.tools/yc`; установщик выбирает архитектуру машины.
+
+## Доступ к YC и параметры нового стенда
+
+Из корня проекта, в той же сессии Bash:
+
+```bash
+.tools/yc --no-browser --config "$PWD/.local/yc-config.yaml" init
+.venv/bin/python scripts/prepare_local.py
+chmod 700 .local
+chmod 600 .local/otus_dz03 .local/secrets.yml \
+  .local/yc-config.yaml terraform/terraform.tfvars.json
+```
+
+Ссылку авторизации открыть вручную. Проверить выбранные cloud/folder и
+`admin_cidrs` в локальном `terraform/terraform.tfvars.json`. При необходимости
+на первой подготовке передать `--admin-cidr ВАШ_IP/32` в `prepare_local.py`.
+При смене адреса отредактировать существующий tfvars и применить отдельный
+Terraform plan. Скрипт не перезаписывает существующие параметры и секреты.
+
+## Terraform
+
+`plan` сразу выводит изменения, в том числе при `-destroy`. Проверить этот
+вывод перед `apply`. Команда `tf show ../.local/ИМЯ-ПЛАНА.tfplan` нужна только
+для необязательного повторного просмотра сохранённого плана позже.
+
+В каждой новой сессии перейти в корень проекта и определить функцию:
+
+```bash
+export TF_CLI_CONFIG_FILE="$PWD/terraform.rc"
+tf() {
+  .venv/bin/python scripts/tf.py "$@"
+}
+tf init -input=false
+tf fmt -check
+tf validate
+tf plan -input=false -out=../.local/otus-dz03.tfplan
+# После проверки cloud/folder и всех изменений в плане:
+tf apply ../.local/otus-dz03.tfplan
+tf output
+```
+
+Функция передаёт токен только процессу Terraform. Не включать `set -x` при работе
+с секретами. Обёртка получает IAM-токен автоматически через YC CLI.
+Для существующего стенда неожиданный план повторного создания всех ВМ — повод
+проверить state, а не выполнять apply.
+
+## Подготовка и управление Ansible с рабочего места
+
+После подготовки окружения основной `terraform apply` сам запускает настройку
+через `terraform_data.configuration`. Следующая команда нужна только для
+отдельного ручного запуска того же этапа:
+
+```bash
+.venv/bin/python -u scripts/controller.py deploy
+```
+
+`deploy` выполняет подготовку, проверку синтаксиса site.yml и verify_balance.yml, настройку site.yml
+и проверки verify.yml и verify_balance.yml (оба алгоритма без остановки служб,
+с возвратом к round-robin); при первой ошибке дальнейшие этапы не запускаются.
+Создание ВМ в эту команду не входит; её вызывает Terraform после создания ВМ.
+Тесты с остановкой служб запускаются отдельно. Ошибка возвращается в apply,
+ресурсы сохраняются; журнал находится в `.local/logs/deploy-*.log`.
+
+На этапе подготовки `prepare` автоматически получает SSH host keys через авторизованный YC API
+до первого SSH-подключения. Отдельный `trust` нужен только для диагностики.
+После успешного получения ключей `prepare` загружает
+код, формирует inventory и устанавливает зависимости на lb. Коллекции входят
+в пакет `ansible==14.4.0` из PyPI; отдельный доступ к API Galaxy не нужен.
+При ошибке загрузки проверить доступ к PyPI и повторить prepare. Наличие
+одного ansible-core ещё не означает готовность коллекций или приложения.
+
+После изменения исходников:
+
+```bash
+.venv/bin/python -u scripts/controller.py upload
+.venv/bin/python -u scripts/controller.py run site.yml
+```
+
+## Работа непосредственно на Linux-контроллере
+
+Подключение с рабочего места после успешного `prepare`:
+
+В проекте публичный адрес находится внутри output `lab`:
+
+```bash
+LB_IP="$(tf output -json lab | .venv/bin/python -c 'import json,sys; print(json.load(sys.stdin)["lb_public_ip"])')"
+ssh -i .local/otus_dz03 -o IdentitiesOnly=yes \
+  -o StrictHostKeyChecking=yes -o UserKnownHostsFile=.local/known_hosts "otus@$LB_IP"
+```
+
+В SSH-сессии на lb после успешного prepare:
+
+```bash
+cd /home/otus/otus-dz03/ansible
+../.venv/bin/ansible-playbook site.yml --syntax-check
+../.venv/bin/ansible-playbook site.yml
+../.venv/bin/ansible-playbook verify.yml
+../.venv/bin/ansible-playbook verify_balance.yml
+```
+
+Для повторной установки зависимостей непосредственно на lb:
+
+```bash
+cd /home/otus/otus-dz03
+.venv/bin/python -m pip install -r ansible/requirements.txt
+.venv/bin/ansible-galaxy collection list ansible.mysql
+.venv/bin/ansible-galaxy collection list ansible.posix
+```
+
+Балансировка без остановки служб уже проверяется при развёртывании.
+Отдельный сценарий оператора проверяет отказы Nginx и PHP-FPM на web1
+для обоих алгоритмов:
+
+```bash
+cd /home/otus/otus-dz03
+# Заменить значение публичным IP из output lab на рабочем месте.
+PUBLIC_IP=YOUR_LB_PUBLIC_IP
+bash scripts/run_checks.sh "$PUBLIC_IP"
+```
+
+Этот сценарий временно останавливает службы web1 и возвращает round-robin.
+При принудительном завершении или потере соединения проверить восстановление
+служб по инструкции в README. Для проверки идемпотентности повторить site.yml;
+ожидаемый результат — `changed=0`, без failed/unreachable.
+
+## Удаление стенда
+
+Выполнять **на рабочем месте с актуальным state**, не на удаляемой ВМ lb.
+Сначала сохранить нужную БД и файлы uploads вне стенда. Удаляются четыре ВМ
+вместе с дисками и управляемые этим state сетевые ресурсы.
+Функцию `tf` определить как в разделе Terraform.
+
+```bash
+tf state list
+tf plan -destroy -input=false -out=../.local/otus-dz03-destroy.tfplan
+# После проверки вывода plan: следующая команда удаляет ресурсы
+# без дополнительного интерактивного подтверждения.
+tf apply ../.local/otus-dz03-destroy.tfplan
+tf state list
+```
+
+После успешного apply список state должен быть пуст. Дополнительно проверить
+в консоли YC отсутствие ресурсов DZ03. При частичной ошибке не удалять state:
+устранить причину, построить и проверить новый destroy-план. Пустой state нового
+клона не удалит ранее созданный стенд. Destroy по этой инструкции не выполнялся.

@@ -1,0 +1,30 @@
+---
+- name: Дождаться завершения cloud-init
+  ansible.builtin.command: cloud-init status --wait
+  changed_when: false
+
+- name: Установить системные зависимости
+  ansible.builtin.apt:
+    name:
+      - python3-venv
+      - python3-apt
+      - ca-certificates
+      - curl
+    update_cache: true
+    cache_valid_time: 3600
+    lock_timeout: 300
+
+- name: Создать каталог Python-окружения модулей Ansible
+  ansible.builtin.file:
+    path: /opt/otus-dz03
+    state: directory
+    mode: "0755"
+
+- name: Создать venv с доступом к системному python3-apt
+  ansible.builtin.command:
+    argv: [python3, -m, venv, --system-site-packages, /opt/otus-dz03/venv]
+    creates: /opt/otus-dz03/venv/bin/python
+
+- name: Использовать venv для последующих модулей
+  ansible.builtin.set_fact:
+    ansible_python_interpreter: /opt/otus-dz03/venv/bin/python
