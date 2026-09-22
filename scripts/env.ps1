@@ -1,4 +1,4 @@
-# Подключение: . .\scripts\env.ps1. Меняется только текущая сессия PowerShell.
+﻿# Подключение: . .\scripts\env.ps1. Меняется только текущая сессия PowerShell.
 $taskRoot = Split-Path -Parent $PSScriptRoot
 $env:TF_CLI_CONFIG_FILE = Join-Path $taskRoot 'terraform.rc'
 $env:YC_CONFIG_PATH = Join-Path $taskRoot '.local\yc-config.yaml'

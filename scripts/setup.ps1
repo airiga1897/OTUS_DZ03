@@ -1,4 +1,4 @@
-param([string]$ReuseProject = '')
+﻿param([string]$ReuseProject = '')
 
 $ErrorActionPreference = 'Stop'
 $taskRoot = Split-Path -Parent $PSScriptRoot

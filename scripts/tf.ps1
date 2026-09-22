@@ -1,4 +1,4 @@
-# Запуск Terraform с локальным IAM-токеном. Пример: .\scripts\tf.ps1 plan '-out=../.local/otus-dz03.tfplan'
+﻿# Запуск Terraform с локальным IAM-токеном. Пример: .\scripts\tf.ps1 plan '-out=../.local/otus-dz03.tfplan'
 $taskRoot = Split-Path -Parent $PSScriptRoot
 $env:TF_CLI_CONFIG_FILE = Join-Path $taskRoot 'terraform.rc'
 $savedToken = $env:YC_TOKEN
