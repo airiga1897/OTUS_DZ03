@@ -184,13 +184,15 @@ Remove-Variable taskToken
 ### 4. Настроить приложение
 
 ```powershell
-.\.tools\venv\Scripts\python.exe -u scripts/controller.py prepare
-.\.tools\venv\Scripts\python.exe -u scripts/controller.py run site.yml --syntax-check
-.\.tools\venv\Scripts\python.exe -u scripts/controller.py run site.yml
-.\.tools\venv\Scripts\python.exe -u scripts/controller.py run verify.yml
+.\.tools\venv\Scripts\python.exe -u scripts/controller.py deploy
 ```
 
-`prepare` автоматически получает SSH host keys через serial console YC,
+`deploy` последовательно выполняет подготовку, `site.yml --syntax-check`,
+`site.yml` и `verify.yml`. При первой ошибке выполнение останавливается;
+сообщение об успехе выводится только после завершения всех этапов.
+Создание ВМ Terraform и тесты с остановкой служб остаются отдельными шагами.
+
+Внутри подготовки `prepare` автоматически получает SSH host keys через serial console YC,
 проверяет ключ сервера при подключении, загружает исходники и секреты только DZ03, создаёт inventory
 и устанавливает Ansible с коллекциями в окружение проекта на lb.
 Credentials YC и state на ВМ не передаются.
@@ -334,13 +336,12 @@ tf output -raw lb_public_ip
 С рабочего места:
 
 ```bash
-.venv/bin/python -u scripts/controller.py prepare
-.venv/bin/python -u scripts/controller.py run site.yml --syntax-check
-.venv/bin/python -u scripts/controller.py run site.yml
-.venv/bin/python -u scripts/controller.py run verify.yml
+.venv/bin/python -u scripts/controller.py deploy
 ```
 
-`prepare` сначала автоматически получает ключи серверов через YC, затем загружает исходники,
+`deploy` выполняет подготовку, `site.yml --syntax-check`, `site.yml` и `verify.yml`
+последовательно, с остановкой при первой ошибке. Terraform и тесты отказов
+выполняются отдельно. Подготовка сначала получает ключи через YC, затем загружает исходники,
 секреты DZ03 и inventory, создаёт `/home/otus/otus-dz03/.venv` на lb.
 Облачные credentials и state остаются на рабочем месте.
 Коллекции входят в зафиксированный пакет `ansible==14.4.0` из PyPI;

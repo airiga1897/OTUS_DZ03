@@ -97,13 +97,14 @@ tf output
 ## Подготовка и управление Ansible с рабочего места
 
 ```bash
-.venv/bin/python -u scripts/controller.py prepare
-.venv/bin/python -u scripts/controller.py run site.yml --syntax-check
-.venv/bin/python -u scripts/controller.py run site.yml
-.venv/bin/python -u scripts/controller.py run verify.yml
+.venv/bin/python -u scripts/controller.py deploy
 ```
 
-`prepare` автоматически получает SSH host keys через авторизованный YC API
+`deploy` выполняет подготовку, проверку синтаксиса site.yml, настройку site.yml
+и проверку verify.yml; при первой ошибке дальнейшие этапы не запускаются.
+Terraform и тесты с остановкой служб в эту команду не входят.
+
+На этапе подготовки `prepare` автоматически получает SSH host keys через авторизованный YC API
 до первого SSH-подключения. Отдельный `trust` нужен только для диагностики.
 После успешного получения ключей `prepare` загружает
 код, формирует inventory и устанавливает зависимости на lb. Коллекции входят

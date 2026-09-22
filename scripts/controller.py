@@ -132,24 +132,29 @@ def upload(client, lab):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=["trust", "prepare", "upload", "run", "exec"])
+    parser.add_argument("action", choices=["deploy", "trust", "prepare", "upload", "run", "exec"])
     parser.add_argument("arguments", nargs=argparse.REMAINDER)
     args = parser.parse_args()
     lab = terraform_output()
     print(f"Балансировщик: {lab['lb_public_ip']} | Сайт: http://{lab['lb_public_ip']}", flush=True)
-    if args.action in ("trust", "prepare"):
+    if args.action in ("trust", "prepare", "deploy"):
         host_keys(lab)
     if args.action == "trust":
         return
     with connect(lab) as client:
         base = f"/home/{lab['ssh_user']}/otus-dz03"
-        if args.action in ("prepare", "upload"):
+        if args.action in ("prepare", "deploy", "upload"):
             upload(client, lab)
-        if args.action == "prepare":
+        if args.action in ("prepare", "deploy"):
             remote_exec(client, "sudo cloud-init status --wait && sudo apt-get update -qq && "
                         "sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y python3-venv")
             remote_exec(client, f"cd {base} && python3 -m venv .venv && "
                         ".venv/bin/python -m pip install -r ansible/requirements.txt")
+        if args.action == "deploy":
+            for playbook_args in (("site.yml", "--syntax-check"), ("site.yml",), ("verify.yml",)):
+                remote_exec(client, f"cd {base}/ansible && ../.venv/bin/ansible-playbook "
+                            + shlex.join(playbook_args))
+            print(f"Развёртывание и verify.yml завершены: http://{lab['lb_public_ip']}", flush=True)
         if args.action == "run":
             if not args.arguments:
                 raise SystemExit("Укажите playbook, например site.yml --syntax-check")
