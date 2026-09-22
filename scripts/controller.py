@@ -18,6 +18,8 @@ LOCAL = ROOT / ".local"
 
 
 def terraform_output():
+    if "OTUS_LAB_JSON" in os.environ:
+        return json.loads(os.environ["OTUS_LAB_JSON"])
     executable = ROOT / ".tools" / ("terraform.exe" if sys.platform == "win32" else "terraform")
     return json.loads(subprocess.check_output(
         [str(executable), "-chdir=terraform", "output", "-json", "lab"], cwd=ROOT))

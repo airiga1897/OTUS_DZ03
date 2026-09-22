@@ -5,7 +5,7 @@ output "lb_public_ip" {
 
 output "site_url" {
   description = "Адрес WordPress через балансировщик."
-  value = "http://${yandex_vpc_address.lb.external_ipv4_address[0].address}"
+  value       = "http://${yandex_vpc_address.lb.external_ipv4_address[0].address}"
 }
 
 output "lab" {
