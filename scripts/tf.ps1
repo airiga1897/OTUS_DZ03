@@ -11,13 +11,20 @@ if ($args.Count -eq 1 -and $args[0] -eq 'output') {
                 @($taskState.resources).Count -eq 0 -and
                 @($taskState.outputs.PSObject.Properties).Count -eq 0) {
                 Write-Host 'Локальный Terraform state пуст: ресурсов и выходных значений нет.'
-                Write-Host 'После destroy это нормально. Публичный IP появится после нового apply.'
+                Write-Host 'Это нормально перед первым развёртыванием и после destroy.'
+                Write-Host 'Публичный IP и другие выходные значения появятся после успешного apply.'
                 Write-Host 'Для развёртывания выполните plan, проверьте его и затем выполните apply.'
                 exit 0
             }
         } catch {
             # Повреждённый или недоступный state диагностирует сам Terraform.
         }
+    } else {
+        Write-Host 'Локальный Terraform state ещё не создан: выходных значений нет.'
+        Write-Host 'Перед первым развёртыванием это нормально.'
+        Write-Host 'Выполните init, затем plan, проверьте план и выполните apply.'
+        Write-Host 'После успешного apply появятся публичный IP и другие выходные значения.'
+        exit 0
     }
 }
 $env:TF_CLI_CONFIG_FILE = Join-Path $taskRoot 'terraform.rc'
