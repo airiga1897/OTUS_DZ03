@@ -1,0 +1,28 @@
+---
+- name: Подготовить операционные системы и Python venv
+  hosts: all
+  become: true
+  roles:
+    - common
+
+- name: Настроить общую базу данных и загрузки WordPress
+  hosts: database
+  become: true
+  vars_files:
+    - ../.local/secrets.yml
+  roles:
+    - database
+
+- name: Настроить два одинаковых веб-узла
+  hosts: web
+  become: true
+  vars_files:
+    - ../.local/secrets.yml
+  roles:
+    - wordpress
+
+- name: Настроить балансировщик
+  hosts: loadbalancer
+  become: true
+  roles:
+    - loadbalancer

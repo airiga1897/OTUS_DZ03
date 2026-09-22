@@ -1,0 +1,104 @@
+---
+- name: Проверить WordPress и общий каталог uploads
+  hosts: web
+  become: true
+  tasks:
+    - name: Проверить установленную CMS
+      ansible.builtin.command:
+        argv: [/usr/local/bin/wp, core, is-installed, "--path={{ wordpress_root }}", --allow-root]
+      changed_when: false
+
+    - name: Проверить тип общего файлового хранилища
+      ansible.builtin.command:
+        argv: [findmnt, -n, -o, FSTYPE, --target, "{{ wordpress_root }}/wp-content/uploads"]
+      register: uploads_mount
+      changed_when: false
+      failed_when: uploads_mount.stdout | trim != 'nfs4'
+
+    - name: Найти уже созданное тестовое вложение
+      ansible.builtin.command:
+        argv:
+          - /usr/local/bin/wp
+          - post
+          - list
+          - --post_type=attachment
+          - --post_status=inherit
+          - --name=otus-dz03-proof
+          - --field=ID
+          - "--path={{ wordpress_root }}"
+          - --allow-root
+      register: existing_attachment
+      changed_when: false
+      run_once: true
+
+    - name: Подготовить тестовое изображение размером один пиксель
+      ansible.builtin.command:
+        argv:
+          - /opt/otus-dz03/venv/bin/python
+          - -c
+          - "import base64; from pathlib import Path; Path('/tmp/otus-dz03-proof.png').write_bytes(base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGPQaDoBAAJIAXNV9htfAAAAAElFTkSuQmCC'))"
+        creates: /tmp/otus-dz03-proof.png
+      when: existing_attachment.stdout | trim == ''
+      run_once: true
+
+    - name: Загрузить изображение через WordPress от имени PHP-пользователя
+      ansible.builtin.command:
+        argv:
+          - runuser
+          - -u
+          - www-data
+          - --
+          - /usr/local/bin/wp
+          - media
+          - import
+          - /tmp/otus-dz03-proof.png
+          - --title=otus-dz03-proof
+          - --porcelain
+          - "--path={{ wordpress_root }}"
+      register: imported_attachment
+      when: existing_attachment.stdout | trim == ''
+      run_once: true
+
+    - name: Получить URL общего вложения
+      ansible.builtin.command:
+        argv:
+          - /usr/local/bin/wp
+          - post
+          - get
+          - "{{ existing_attachment.stdout | trim if existing_attachment.stdout | trim != '' else imported_attachment.stdout | trim }}"
+          - --field=guid
+          - "--path={{ wordpress_root }}"
+          - --allow-root
+      register: attachment_url
+      changed_when: false
+      run_once: true
+
+    - name: Прочитать одно вложение напрямую с обоих веб-узлов
+      ansible.builtin.uri:
+        url: "http://{{ hostvars[inventory_hostname].private_ip }}{{ hostvars[inventory_hostname].attachment_url.stdout | trim | regex_replace('^https?://[^/]+', '') }}"
+        headers:
+          Host: "{{ hostvars[groups['loadbalancer'][0]].public_ip }}"
+        status_code: 200
+      delegate_to: lb
+      register: media_response
+
+    - name: Проверить тип и размер изображения
+      ansible.builtin.assert:
+        that:
+          - media_response.content_type == 'image/png'
+          - media_response.content_length | int > 0
+
+    - name: Проверить динамический ответ напрямую от узла
+      ansible.builtin.uri:
+        url: "http://{{ hostvars[inventory_hostname].private_ip }}/__lab/health/direct"
+        headers:
+          Host: "{{ hostvars[groups['loadbalancer'][0]].public_ip }}"
+        return_content: true
+      delegate_to: lb
+      register: health_response
+
+    - name: Подтвердить работу PHP и общей БД
+      ansible.builtin.assert:
+        that:
+          - health_response.json.node == inventory_hostname
+          - health_response.json.database == 'ok'

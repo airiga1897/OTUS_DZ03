@@ -1,0 +1,6 @@
+---
+- name: Переключить алгоритм без перенастройки WordPress
+  hosts: loadbalancer
+  become: true
+  roles:
+    - loadbalancer

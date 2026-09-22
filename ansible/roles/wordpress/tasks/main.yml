@@ -1,0 +1,163 @@
+---
+- name: Установить Nginx, PHP-FPM и расширения WordPress
+  ansible.builtin.apt:
+    name:
+      - nginx
+      - "php{{ php_version }}-fpm"
+      - "php{{ php_version }}-cli"
+      - "php{{ php_version }}-mysql"
+      - "php{{ php_version }}-curl"
+      - "php{{ php_version }}-gd"
+      - "php{{ php_version }}-mbstring"
+      - "php{{ php_version }}-xml"
+      - "php{{ php_version }}-zip"
+      - nfs-common
+    state: present
+    lock_timeout: 300
+
+- name: Скачать фиксированную версию WP-CLI
+  ansible.builtin.get_url:
+    url: "https://github.com/wp-cli/wp-cli/releases/download/v{{ wp_cli_version }}/wp-cli-{{ wp_cli_version }}.phar"
+    dest: /usr/local/bin/wp
+    mode: "0755"
+
+- name: Создать каталог WordPress
+  ansible.builtin.file:
+    path: "{{ wordpress_root }}"
+    state: directory
+    owner: root
+    group: www-data
+    mode: "0755"
+
+- name: Скачать архив фиксированной версии WordPress
+  ansible.builtin.get_url:
+    url: "https://wordpress.org/wordpress-{{ wordpress_version }}.tar.gz"
+    dest: "/var/cache/wordpress-{{ wordpress_version }}.tar.gz"
+    mode: "0644"
+
+- name: Распаковать WordPress системным tar с поддержкой длинных имён
+  ansible.builtin.unarchive:
+    src: "/var/cache/wordpress-{{ wordpress_version }}.tar.gz"
+    dest: "{{ wordpress_root }}"
+    remote_src: true
+    extra_opts: [--strip-components=1]
+    creates: "{{ wordpress_root }}/wp-includes/version.php"
+
+- name: Проверить установленную версию перед дальнейшими действиями
+  ansible.builtin.command:
+    argv: [/usr/local/bin/wp, core, version, "--path={{ wordpress_root }}", --allow-root]
+  register: installed_wordpress
+  changed_when: false
+  failed_when: installed_wordpress.stdout | trim != wordpress_version
+
+- name: Проверить контрольные суммы ядра
+  ansible.builtin.command:
+    argv: [/usr/local/bin/wp, core, verify-checksums, "--version={{ wordpress_version }}", "--path={{ wordpress_root }}", --allow-root]
+  changed_when: false
+
+- name: Записать общие настройки БД, URL и ключи авторизации
+  ansible.builtin.template:
+    src: wp-config.php.j2
+    dest: "{{ wordpress_root }}/wp-config.php"
+    owner: root
+    group: www-data
+    mode: "0640"
+  no_log: true
+
+- name: Подключить общие загрузки через NFSv4
+  ansible.posix.mount:
+    path: "{{ wordpress_root }}/wp-content/uploads"
+    src: "{{ db_private_ip }}:/"
+    fstype: nfs4
+    opts: rw,hard,vers=4.2,_netdev
+    state: mounted
+
+- name: Создать каталог зависимостей PHP-FPM
+  ansible.builtin.file:
+    path: "/etc/systemd/system/php{{ php_version }}-fpm.service.d"
+    state: directory
+    mode: "0755"
+
+- name: Запускать PHP-FPM после монтирования uploads
+  ansible.builtin.copy:
+    dest: "/etc/systemd/system/php{{ php_version }}-fpm.service.d/uploads.conf"
+    mode: "0644"
+    content: |
+      [Unit]
+      RequiresMountsFor={{ wordpress_root }}/wp-content/uploads
+  notify: Перезапустить PHP-FPM
+
+- name: Настроить лимиты PHP
+  ansible.builtin.copy:
+    dest: "/etc/php/{{ php_version }}/fpm/conf.d/99-otus.ini"
+    mode: "0644"
+    content: |
+      upload_max_filesize = 16M
+      post_max_size = 20M
+      memory_limit = 128M
+      max_execution_time = 30
+  notify: Перезапустить PHP-FPM
+
+- name: Установить диагностическую проверку PHP и БД
+  ansible.builtin.template:
+    src: health.php.j2
+    dest: "{{ wordpress_root }}/otus-health.php"
+    mode: "0644"
+
+- name: Создать каталог статики
+  ansible.builtin.file:
+    path: "{{ wordpress_root }}/static"
+    state: directory
+    mode: "0755"
+
+- name: Добавить статическую страницу узла
+  ansible.builtin.copy:
+    dest: "{{ wordpress_root }}/static/index.html"
+    mode: "0644"
+    content: "<!doctype html><html lang=\"ru\"><meta charset=\"utf-8\"><title>OTUS DZ03</title><h1>{{ inventory_hostname }}</h1><p>Статика Nginx; WordPress доступен по /</p></html>\n"
+
+- name: Применить конфигурацию Nginx после проверки синтаксиса
+  ansible.builtin.template:
+    src: nginx.conf.j2
+    dest: /etc/nginx/nginx.conf
+    mode: "0644"
+    validate: /usr/sbin/nginx -t -c %s
+  notify: Перезагрузить веб Nginx
+
+- name: Включить PHP-FPM и Nginx
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    state: started
+    enabled: true
+    daemon_reload: true
+  loop: ["php{{ php_version }}-fpm", nginx]
+
+- name: Применить конфигурации до HTTP-проверок
+  ansible.builtin.meta: flush_handlers
+
+- name: Проверить наличие таблиц WordPress
+  ansible.builtin.command:
+    argv: [/usr/local/bin/wp, core, is-installed, "--path={{ wordpress_root }}", --allow-root]
+  register: wordpress_installed
+  changed_when: false
+  failed_when: wordpress_installed.rc not in [0, 1]
+  run_once: true
+
+- name: Инициализировать общую БД ровно один раз
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/wp
+      - core
+      - install
+      - "--path={{ wordpress_root }}"
+      - "--url={{ wordpress_url }}"
+      - "--title={{ wordpress_title }}"
+      - "--admin_user={{ wordpress_admin_user }}"
+      - "--admin_email={{ wordpress_admin_email }}"
+      - --prompt=admin_password
+      - --skip-email
+      - --allow-root
+    stdin: "{{ wordpress_admin_password }}"
+  when: wordpress_installed.rc == 1
+  run_once: true
+  no_log: true

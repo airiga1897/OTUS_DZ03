@@ -1,0 +1,19 @@
+<?php
+// Настройки идентичны на обоих веб-узлах; изменяемые файлы только в uploads.
+define('DB_NAME', '{{ wordpress_db_name }}');
+define('DB_USER', '{{ wordpress_db_user }}');
+define('DB_PASSWORD', base64_decode('{{ wordpress_db_password | b64encode }}'));
+define('DB_HOST', '{{ db_private_ip }}');
+define('DB_CHARSET', 'utf8mb4');
+define('DB_COLLATE', '');
+{% for key, value in wordpress_salts.items() %}
+define('{{ key }}', base64_decode('{{ value | b64encode }}'));
+{% endfor %}
+define('WP_HOME', '{{ wordpress_url }}');
+define('WP_SITEURL', '{{ wordpress_url }}');
+define('DISALLOW_FILE_MODS', true);
+define('WP_AUTO_UPDATE_CORE', false);
+define('WP_DEBUG', false);
+$table_prefix = 'wp_';
+if (!defined('ABSPATH')) { define('ABSPATH', __DIR__ . '/'); }
+require_once ABSPATH . 'wp-settings.php';

@@ -1,0 +1,13 @@
+---
+nginx_lb_method: round_robin
+wordpress_version: "7.1.1"
+wordpress_root: /var/www/wordpress
+wordpress_db_name: wordpress
+wordpress_db_user: wordpress
+wordpress_admin_user: otusadmin
+wordpress_admin_email: admin@example.test
+wordpress_title: "OTUS DZ03 — балансировка WordPress"
+wp_cli_version: "2.12.0"
+php_version: "8.3"
+db_private_ip: "{{ hostvars[groups['database'][0]].private_ip }}"
+wordpress_url: "http://{{ hostvars[groups['loadbalancer'][0]].public_ip }}"

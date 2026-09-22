@@ -1,0 +1,6 @@
+cloud_id            = "YOUR_CLOUD_ID"
+folder_id           = "YOUR_FOLDER_ID"
+admin_cidrs         = ["203.0.113.10/32"] # Заменить на свой публичный IP.
+ssh_public_key_path = "../.local/otus_dz03.pub"
+zone                = "ru-central1-a"
+# image_id = "..." # Для повторяемости зафиксировать ID Ubuntu 24.04 из первого плана.

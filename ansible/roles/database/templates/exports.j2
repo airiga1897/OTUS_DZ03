@@ -1,0 +1,2 @@
+# NFSv4: экспорт становится корнем :/; root_squash остаётся включённым.
+/srv/wordpress/uploads {% for node in groups['web'] %}{{ hostvars[node].private_ip }}(rw,sync,no_subtree_check,root_squash,fsid=0) {% endfor %}

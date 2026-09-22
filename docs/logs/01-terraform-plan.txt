@@ -1,0 +1,19 @@
+yandex_vpc_network.lab: Refreshing state... [id=<resource-id>]
+yandex_vpc_gateway.egress: Refreshing state... [id=<resource-id>]
+yandex_vpc_address.lb: Refreshing state... [id=<resource-id>]
+data.yandex_compute_image.ubuntu[0]: Reading...
+yandex_vpc_route_table.egress: Refreshing state... [id=<resource-id>]
+yandex_vpc_security_group.lb: Refreshing state... [id=<resource-id>]
+data.yandex_compute_image.ubuntu[0]: Read complete after 2s [id=<resource-id>]
+yandex_vpc_subnet.lab: Refreshing state... [id=<resource-id>]
+yandex_vpc_security_group.web: Refreshing state... [id=<resource-id>]
+yandex_vpc_security_group.db: Refreshing state... [id=<resource-id>]
+yandex_compute_instance.node["web1"]: Refreshing state... [id=<resource-id>]
+yandex_compute_instance.node["db"]: Refreshing state... [id=<resource-id>]
+yandex_compute_instance.node["lb"]: Refreshing state... [id=<resource-id>]
+yandex_compute_instance.node["web2"]: Refreshing state... [id=<resource-id>]
+
+No changes. Your infrastructure matches the configuration.
+
+Terraform has compared your real infrastructure against your configuration
+and found no differences, so no changes are needed.
