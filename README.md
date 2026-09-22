@@ -142,6 +142,22 @@ YC запускается с `--no-browser`; ссылку входа откры�
 При смене адреса изменить `admin_cidrs` в существующем tfvars и применить
 проверенный план Terraform. При истечении IAM-токена повторить `yc_auth.py`.
 
+Если токен сохраняется вручную из PowerShell, использовать UTF-8 без BOM:
+
+```powershell
+$taskToken = & .\scripts\yc.ps1 iam create-token
+if ($LASTEXITCODE -ne 0) { throw "Не удалось получить IAM-токен" }
+$taskToken = ($taskToken -join "").Trim()
+if ($taskToken -notmatch '\A[A-Za-z0-9_.-]{80,}\z') { throw "Некорректный формат токена" }
+[IO.File]::WriteAllText((Join-Path $PWD '.local/iam-token'), $taskToken, [Text.UTF8Encoding]::new($false))
+Remove-Variable taskToken
+```
+
+В Windows PowerShell 5.1 `Set-Content -Encoding utf8` добавляет BOM.
+Контроллер поддерживает чтение такого файла, но при ручной записи предпочтителен
+приведённый способ. После пересоздания ВМ сначала успешно выполнить `trust`,
+затем `prepare`: старые записи known_hosts не подтверждают ключи новых серверов.
+
 ### 3. Создать инфраструктуру
 
 ```powershell

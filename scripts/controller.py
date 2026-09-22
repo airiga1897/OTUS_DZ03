@@ -43,7 +43,11 @@ def host_keys(lab):
     """Доверенный источник ключей — serial console через авторизованный API YC."""
     executable = ROOT / ".tools" / ("yc.exe" if sys.platform == "win32" else "yc")
     env = dict(os.environ)
-    env["YC_IAM_TOKEN"] = (LOCAL / "iam-token").read_text().strip()
+    # Windows PowerShell 5.1 сохраняет UTF-8 через Set-Content с BOM.
+    token = (LOCAL / "iam-token").read_text(encoding="utf-8-sig").strip()
+    if not re.fullmatch(r"[A-Za-z0-9_.-]{80,}", token):
+        raise SystemExit("Некорректный формат .local/iam-token: обновите IAM-токен. Значение скрыто.")
+    env["YC_IAM_TOKEN"] = token
     lines = []
     for node, instance_id in lab["instance_ids"].items():
         found = None
