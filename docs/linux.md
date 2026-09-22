@@ -41,9 +41,8 @@ export PYTHONIOENCODING=utf-8
 ```bash
 .tools/yc --no-browser --config "$PWD/.local/yc-config.yaml" init
 .venv/bin/python scripts/prepare_local.py
-.venv/bin/python -u scripts/yc_auth.py
 chmod 700 .local
-chmod 600 .local/otus_dz03 .local/secrets.yml .local/iam-token \
+chmod 600 .local/otus_dz03 .local/secrets.yml \
   .local/yc-config.yaml terraform/terraform.tfvars.json
 ```
 
@@ -64,7 +63,7 @@ Terraform plan. Скрипт не перезаписывает существу�
 ```bash
 export TF_CLI_CONFIG_FILE="$PWD/terraform.rc"
 tf() {
-  YC_TOKEN="$(cat .local/iam-token)" .tools/terraform -chdir=terraform "$@"
+  .venv/bin/python scripts/tf.py "$@"
 }
 tf init -input=false
 tf fmt -check
@@ -76,7 +75,7 @@ tf output
 ```
 
 Функция передаёт токен только процессу Terraform. Не включать `set -x` при работе
-с секретами. При истечении токена повторить `scripts/yc_auth.py` через `.venv/bin/python`.
+с секретами. Обёртка получает IAM-токен автоматически через YC CLI.
 Для существующего стенда неожиданный план повторного создания всех ВМ — повод
 проверить state, а не выполнять apply.
 
@@ -90,8 +89,9 @@ tf output
 .venv/bin/python -u scripts/controller.py deploy
 ```
 
-`deploy` выполняет подготовку, проверку синтаксиса site.yml, настройку site.yml
-и проверку verify.yml; при первой ошибке дальнейшие этапы не запускаются.
+`deploy` выполняет подготовку, проверку синтаксиса site.yml и verify_balance.yml, настройку site.yml
+и проверки verify.yml и verify_balance.yml (оба алгоритма без остановки служб,
+с возвратом к round-robin); при первой ошибке дальнейшие этапы не запускаются.
 Создание ВМ в эту команду не входит; её вызывает Terraform после создания ВМ.
 Тесты с остановкой служб запускаются отдельно. Ошибка возвращается в apply,
 ресурсы сохраняются; журнал находится в `.local/logs/deploy-*.log`.
@@ -130,8 +130,7 @@ cd /home/otus/otus-dz03/ansible
 ../.venv/bin/ansible-playbook site.yml --syntax-check
 ../.venv/bin/ansible-playbook site.yml
 ../.venv/bin/ansible-playbook verify.yml
-../.venv/bin/ansible-playbook balance.yml -e nginx_lb_method=hash
-../.venv/bin/ansible-playbook balance.yml -e nginx_lb_method=round_robin
+../.venv/bin/ansible-playbook verify_balance.yml
 ```
 
 Для повторной установки зависимостей непосредственно на lb:
@@ -143,7 +142,9 @@ cd /home/otus/otus-dz03
 .venv/bin/ansible-galaxy collection list ansible.posix
 ```
 
-Проверка обоих алгоритмов с остановкой Nginx и PHP-FPM на web1:
+Балансировка без остановки служб уже проверяется при развёртывании.
+Отдельный сценарий оператора проверяет отказы Nginx и PHP-FPM на web1
+для обоих алгоритмов:
 
 ```bash
 cd /home/otus/otus-dz03

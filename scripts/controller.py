@@ -12,6 +12,7 @@ import time
 from pathlib import Path
 
 import paramiko
+from yc_auth import get_token
 
 ROOT = Path(__file__).resolve().parents[1]
 LOCAL = ROOT / ".local"
@@ -45,11 +46,7 @@ def host_keys(lab):
     """Доверенный источник ключей — serial console через авторизованный API YC."""
     executable = ROOT / ".tools" / ("yc.exe" if sys.platform == "win32" else "yc")
     env = dict(os.environ)
-    # Windows PowerShell 5.1 сохраняет UTF-8 через Set-Content с BOM.
-    token = (LOCAL / "iam-token").read_text(encoding="utf-8-sig").strip()
-    if not re.fullmatch(r"[A-Za-z0-9_.-]{80,}", token):
-        raise SystemExit("Некорректный формат .local/iam-token: обновите IAM-токен. Значение скрыто.")
-    env["YC_IAM_TOKEN"] = token
+    env["YC_IAM_TOKEN"] = get_token()
     lines = []
     for node, instance_id in lab["instance_ids"].items():
         found = None
@@ -153,10 +150,12 @@ def main():
             remote_exec(client, f"cd {base} && python3 -m venv .venv && "
                         ".venv/bin/python -m pip install -r ansible/requirements.txt")
         if args.action == "deploy":
-            for playbook_args in (("site.yml", "--syntax-check"), ("site.yml",), ("verify.yml",)):
+            for playbook_args in (("site.yml", "--syntax-check"),
+                                  ("verify_balance.yml", "--syntax-check"),
+                                  ("site.yml",), ("verify.yml",), ("verify_balance.yml",)):
                 remote_exec(client, f"cd {base}/ansible && ../.venv/bin/ansible-playbook "
                             + shlex.join(playbook_args))
-            print(f"Развёртывание и verify.yml завершены: http://{lab['lb_public_ip']}", flush=True)
+            print(f"Развёртывание, verify.yml и проверка балансировки завершены: http://{lab['lb_public_ip']}", flush=True)
         if args.action == "run":
             if not args.arguments:
                 raise SystemExit("Укажите playbook, например site.yml --syntax-check")

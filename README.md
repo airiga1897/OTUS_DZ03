@@ -118,12 +118,12 @@ Ansible работает в venv на балансировщике, поэтом
 ### Развёртывание нового стенда
 
 1. Клонировать репозиторий и установить инструменты по инструкции Windows или Linux.
-2. Авторизоваться в собственном YC, выбрать cloud/folder и получить IAM-токен.
+2. Авторизоваться в собственном YC, выбрать cloud/folder.
 3. Создать параметры, отдельные SSH-ключи и секреты командой `prepare_local.py`.
 4. Выполнить `init`, затем `plan`, проверить вывод и выполнить `apply` сохранённого плана.
 
 Прежний state и ключи другого стенда не нужны. После первоначальной подготовки
-`plan → apply` создаёт ВМ и автоматически запускает Ansible и verify.yml.
+`plan → apply` создаёт ВМ и автоматически запускает Ansible, verify.yml и проверку обоих алгоритмов балансировки.
 При создании независимого стенда в том же каталоге YC выбрать другой
 `name_prefix` и отдельный рабочий каталог с собственным state и секретами.
 
@@ -159,7 +159,6 @@ Set-Location OTUS_DZ03
 ```powershell
 .\scripts\yc.ps1 init
 .\.tools\venv\Scripts\python.exe scripts/prepare_local.py
-.\.tools\venv\Scripts\python.exe -u scripts/yc_auth.py
 ```
 
 YC запускается с `--no-browser`; ссылку входа открыть вручную. Скрипты создают
@@ -173,23 +172,15 @@ YC запускается с `--no-browser`; ссылку входа откры�
 ```
 
 При смене адреса изменить `admin_cidrs` в существующем tfvars и применить
-проверенный план Terraform. При истечении IAM-токена повторить `yc_auth.py`.
+проверенный план Terraform. IAM-токен получается автоматически перед запуском облачных операций.
 
-Если токен сохраняется вручную из PowerShell, использовать UTF-8 без BOM:
-
-```powershell
-$taskToken = & .\scripts\yc.ps1 iam create-token
-if ($LASTEXITCODE -ne 0) { throw "Не удалось получить IAM-токен" }
-$taskToken = ($taskToken -join "").Trim()
-if ($taskToken -notmatch '\A[A-Za-z0-9_.-]{80,}\z') { throw "Некорректный формат токена" }
-[IO.File]::WriteAllText((Join-Path $PWD '.local/iam-token'), $taskToken, [Text.UTF8Encoding]::new($false))
-Remove-Variable taskToken
-```
-
-В Windows PowerShell 5.1 `Set-Content -Encoding utf8` добавляет BOM.
-Контроллер поддерживает чтение такого файла, но при ручной записи предпочтителен
-приведённый способ. После пересоздания ВМ выполнить `prepare`: он автоматически
-получит ключи новых серверов через YC до первого SSH-подключения.
+IAM-токен получается через YC CLI и передаётся Terraform и локальному
+контроллеру только через окружение процессов. Его значение не выводится,
+файл `.local/iam-token` не используется. Профиль авторизации YC CLI остаётся
+в `.local/yc-config.yaml`: данные доступа в этом файле нужно защищать.
+Отдельно запускать `yc_auth.py` не требуется; он оставлен для проверки авторизации.
+После пересоздания ВМ подготовка внутри `apply` автоматически получает
+SSH host keys через YC до первого SSH-подключения.
 
 ### 3. Создать инфраструктуру
 
@@ -223,10 +214,15 @@ Remove-Variable taskToken
 .\.tools\venv\Scripts\python.exe -u scripts/controller.py deploy
 ```
 
-`deploy` последовательно выполняет подготовку, `site.yml --syntax-check`,
-`site.yml` и `verify.yml`. При первой ошибке выполнение останавливается;
+`deploy` последовательно выполняет подготовку, проверку синтаксиса site.yml
+и verify_balance.yml, затем `site.yml`, `verify.yml` и `verify_balance.yml`. При первой ошибке выполнение останавливается;
 сообщение об успехе выводится только после завершения всех этапов.
-Тесты с остановкой служб остаются отдельным шагом.
+Сценарий `verify_balance.yml` проверяет оба алгоритма без остановки служб:
+round-robin должен задействовать оба узла, hash — сохранять соответствие путей
+узлам в трёх проходах и задействовать оба узла для разных путей.
+После проверки, в том числе при ошибке, Ansible пытается вернуть round-robin
+через `always`. При потере связи или принудительном прерывании восстановление
+не гарантируется. Тесты с остановкой служб остаются отдельным шагом.
 
 Внутри подготовки `prepare` автоматически получает SSH host keys через serial console YC,
 проверяет ключ сервера при подключении, загружает исходники и секреты только DZ03, создаёт inventory
@@ -247,11 +243,13 @@ Credentials YC и state на ВМ не передаются.
 `otusadmin`, пароль — `.local/secrets.yml`. Стенд использует HTTP без домена.
 После правок выполнить `controller.py upload`, затем повторить `run site.yml`.
 
-### 5. Проверить оба режима и отказоустойчивость
+### 5. Отдельно проверить отказы и идемпотентность
+
+Балансировка без остановки служб уже проверяется в `apply`. Следующий сценарий
+отказов запускается оператором явно и временно останавливает службы web1.
+Последняя команда отдельно проверяет идемпотентность настройки.
 
 ```powershell
-.\.tools\venv\Scripts\python.exe -u scripts/controller.py run balance.yml -e nginx_lb_method=hash
-.\.tools\venv\Scripts\python.exe -u scripts/controller.py run balance.yml -e nginx_lb_method=round_robin
 $lab = (.\scripts\tf.ps1 output -json lab | ConvertFrom-Json)
 .\.tools\venv\Scripts\python.exe -u scripts/controller.py exec "cd /home/otus/otus-dz03 && bash scripts/run_checks.sh $($lab.lb_public_ip)"
 .\.tools\venv\Scripts\python.exe -u scripts/controller.py run site.yml
@@ -327,16 +325,15 @@ Venv между Windows и Linux не копируется: его нужно с
 ```bash
 .tools/yc --no-browser --config "$PWD/.local/yc-config.yaml" init
 .venv/bin/python scripts/prepare_local.py
-.venv/bin/python -u scripts/yc_auth.py
 chmod 700 .local
-chmod 600 .local/otus_dz03 .local/secrets.yml .local/iam-token \
+chmod 600 .local/otus_dz03 .local/secrets.yml \
   .local/yc-config.yaml terraform/terraform.tfvars.json
 ```
 
 Ссылку входа открыть вручную. Проверить cloud/folder и `admin_cidrs` в tfvars.
 Для явного IP при первой подготовке использовать
 `prepare_local.py --admin-cidr YOUR_IP/32`. При смене IP редактируется
-существующий tfvars. Истёкший токен обновляется запуском `yc_auth.py` из venv.
+существующий tfvars. IAM-токен получается автоматически перед запуском облачных операций.
 
 ### 3. Создать инфраструктуру
 
@@ -345,7 +342,7 @@ chmod 600 .local/otus_dz03 .local/secrets.yml .local/iam-token \
 ```bash
 export TF_CLI_CONFIG_FILE="$PWD/terraform.rc"
 tf() {
-  YC_TOKEN="$(cat .local/iam-token)" .tools/terraform -chdir=terraform "$@"
+  .venv/bin/python scripts/tf.py "$@"
 }
 tf init -input=false
 tf fmt -check
@@ -373,9 +370,9 @@ tf output -raw lb_public_ip
 .venv/bin/python -u scripts/controller.py deploy
 ```
 
-`deploy` выполняет подготовку, `site.yml --syntax-check`, `site.yml` и `verify.yml`
-последовательно, с остановкой при первой ошибке. Тесты отказов выполняются
-отдельно. Подготовка сначала получает ключи через YC, затем загружает исходники,
+`deploy` выполняет подготовку, проверку синтаксиса site.yml и verify_balance.yml,
+затем `site.yml`, `verify.yml` и `verify_balance.yml` с остановкой при первой ошибке. Проверка балансировки переключает round-robin и hash, проверяет HTTP-ответы
+и через `always` возвращает round-robin. Тесты отказов выполняются отдельно. Подготовка сначала получает ключи через YC, затем загружает исходники,
 секреты DZ03 и inventory, создаёт `/home/otus/otus-dz03/.venv` на lb.
 Облачные credentials и state остаются на рабочем месте.
 Коллекции входят в зафиксированный пакет `ansible==14.4.0` из PyPI;
@@ -386,11 +383,13 @@ tf output -raw lb_public_ip
 пароль хранится в `.local/secrets.yml`. WordPress инициализируется один раз
 в общей БД, код и конфигурация размещаются на обоих web-узлах.
 
-### 5. Проверить оба режима и отказоустойчивость
+### 5. Отдельно проверить отказы и идемпотентность
+
+Балансировка без остановки служб уже проверяется в `apply`. Следующий сценарий
+отказов запускается оператором явно и временно останавливает службы web1.
+Последняя команда отдельно проверяет идемпотентность настройки.
 
 ```bash
-.venv/bin/python -u scripts/controller.py run balance.yml -e nginx_lb_method=hash
-.venv/bin/python -u scripts/controller.py run balance.yml -e nginx_lb_method=round_robin
 LB_IP="$(tf output -json lab | .venv/bin/python -c 'import json,sys; print(json.load(sys.stdin)["lb_public_ip"])')"
 .venv/bin/python -u scripts/controller.py exec \
   "cd /home/otus/otus-dz03 && bash scripts/run_checks.sh $LB_IP"
@@ -440,7 +439,7 @@ tf state list
 Настройка приложения — create-time provisioner ресурса `terraform_data.configuration`.
 План нового стенда содержит 12 облачных ресурсов и один служебный ресурс Terraform;
 пятая ВМ не создаётся. Windows использует `.tools/venv/Scripts/python.exe`,
-Linux — `.venv/bin/python`. Окружение и авторизация должны быть подготовлены до plan.
+Linux — `.venv/bin/python`. Окружение и профиль авторизации YC должны быть подготовлены до plan.
 
 При ошибке настройки `terraform apply` завершается ошибкой. Ресурсы сохраняются,
 журнал остаётся в `.local/logs/deploy-*.log`. После исправления причины создать

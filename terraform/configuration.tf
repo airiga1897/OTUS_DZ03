@@ -24,8 +24,8 @@ resource "terraform_data" "configuration" {
 
   lifecycle {
     precondition {
-      condition     = fileexists(local.deploy_python) && fileexists("${local.project_root}/.local/secrets.yml") && fileexists("${local.project_root}/.local/otus_dz03") && fileexists("${local.project_root}/.local/iam-token")
-      error_message = "Сначала подготовьте проектный Python venv, ключи, secrets.yml и IAM-токен по README."
+      condition     = fileexists(local.deploy_python) && fileexists("${local.project_root}/.local/secrets.yml") && fileexists("${local.project_root}/.local/otus_dz03")
+      error_message = "Сначала подготовьте проектный Python venv, ключи, secrets.yml и авторизацию YC по README."
     }
   }
 

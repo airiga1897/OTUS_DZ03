@@ -1,5 +1,6 @@
-"""Получить IAM-токен, показывая ссылку входа, но не сам токен."""
+"""Получение IAM-токена только в памяти; значение не выводится."""
 
+import os
 import re
 import subprocess
 import sys
@@ -8,25 +9,23 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def main():
-    executable = ROOT / ".tools" / ("yc.exe" if sys.platform == "win32" else "yc")
-    process = subprocess.Popen(
-        [str(executable), "--no-browser", "--config", str(ROOT / ".local/yc-config.yaml"),
-         "iam", "create-token"],
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8",
-    )
-    token = None
-    for line in process.stdout:
-        value = line.strip()
-        if re.fullmatch(r"[A-Za-z0-9_.-]{80,}", value):
-            token = value
-        elif value:
-            print(re.sub(r"(?<![A-Za-z0-9])[A-Za-z0-9_.-]{80,}", "<скрыто>", value), flush=True)
-    if process.wait() != 0 or token is None:
-        raise SystemExit("Не удалось получить IAM-токен. Секреты не выводились.")
-    (ROOT / ".local/iam-token").write_text(token, encoding="utf-8")
-    print("IAM-токен сохранён в исключённый из Git .local/iam-token.")
+def get_token():
+    token = os.environ.get("YC_TOKEN", "").strip()
+    if not token:
+        executable = ROOT / ".tools" / ("yc.exe" if sys.platform == "win32" else "yc")
+        result = subprocess.run(
+            [str(executable), "--no-browser", "--config", str(ROOT / ".local/yc-config.yaml"),
+             "iam", "create-token"],
+            capture_output=True, text=True, encoding="utf-8",
+        )
+        if result.returncode:
+            raise SystemExit("Не удалось получить IAM-токен. Выполните yc init через обёртку проекта с --no-browser.")
+        token = result.stdout.strip()
+    if not re.fullmatch(r"[A-Za-z0-9_.-]{80,}", token):
+        raise SystemExit("Некорректный IAM-токен. Значение скрыто; проверьте авторизацию YC и YC_TOKEN.")
+    return token
 
 
 if __name__ == "__main__":
-    main()
+    get_token()
+    print("Авторизация YC проверена. IAM-токен на диск не записывался.")
